@@ -3,12 +3,12 @@ pub mod manager;
 pub mod peripheral;
 
 use ::jni::JNIEnv;
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
 
 mod jni;
 mod jni_utils;
 
-static GLOBAL_ADAPTER: OnceCell<adapter::Adapter> = OnceCell::new();
+static GLOBAL_ADAPTER: OnceLock<adapter::Adapter> = OnceLock::new();
 
 pub fn init(env: &JNIEnv) -> crate::Result<()> {
     self::jni::init(env)?;

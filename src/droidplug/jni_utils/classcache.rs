@@ -1,8 +1,8 @@
 use dashmap::DashMap;
 use jni::{JNIEnv, errors::Result, objects::GlobalRef};
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
 
-static CLASSCACHE: OnceCell<DashMap<String, GlobalRef>> = OnceCell::new();
+static CLASSCACHE: OnceLock<DashMap<String, GlobalRef>> = OnceLock::new();
 
 pub fn find_add_class(env: &JNIEnv, classname: &str) -> Result<()> {
     let cache = CLASSCACHE.get_or_init(|| DashMap::new());

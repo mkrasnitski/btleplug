@@ -98,7 +98,6 @@ dependencies = [
  "objc2",
  "objc2-core-bluetooth",
  "objc2-foundation",
- "once_cell",
  "static_assertions",
  "thiserror 2.0.18",
  "tokio",
@@ -117,7 +116,6 @@ dependencies = [
  "futures",
  "jni",
  "log",
- "once_cell",
  "tokio",
  "uuid",
 ]

@@ -35,7 +35,7 @@ Last verified: 2026-03-08
 ## Feature Flags
 
 - `serde` -- Enable serde serialization for BLE types
-- `jni-host-tests` -- Enable host-side JNI testing (non-Android only). Brings in `jni/invocation` and `once_cell` as optional deps. Compiles `droidplug::jni_utils` on the host for unit testing without an Android device.
+- `jni-host-tests` -- Enable host-side JNI testing (non-Android only). Brings in `jni/invocation` as an optional dep. Compiles `droidplug::jni_utils` on the host for unit testing without an Android device.
 
 ## Conventions
 

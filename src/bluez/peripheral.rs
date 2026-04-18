@@ -10,7 +10,7 @@ use futures::stream::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "serde")]
 use serde_cr as serde;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::{self, Display, Formatter};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -26,12 +26,6 @@ use crate::{Error, Result};
 struct CharacteristicInternal {
     info: CharacteristicInfo,
     descriptors: HashMap<Uuid, DescriptorInfo>,
-}
-
-impl CharacteristicInternal {
-    fn new(info: CharacteristicInfo, descriptors: HashMap<Uuid, DescriptorInfo>) -> Self {
-        Self { info, descriptors }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -141,7 +135,7 @@ impl api::Peripheral for Peripheral {
     fn mtu(&self) -> u16 {
         let services = self.services.lock().unwrap();
         for (_, service) in services.iter() {
-            for (_, characteristic) in service.characteristics.iter() {
+            if let Some((_, characteristic)) = service.characteristics.iter().next() {
                 return characteristic.info.mtu.unwrap();
             }
         }
@@ -193,44 +187,43 @@ impl api::Peripheral for Peripheral {
         let mut services_internal = HashMap::new();
         let services = self.session.get_services(&self.device).await?;
         for service in services {
-            let characteristics = self.session.get_characteristics(&service.id).await?;
+            let mut uuids = HashSet::new();
             let characteristics = join_all(
-                characteristics
+                self.session
+                    .get_characteristics(&service.id)
+                    .await?
                     .into_iter()
-                    .fold(
+                    .filter_map(|characteristic| {
                         // Only consider the first characteristic of each UUID
                         // This "should" be unique, but of course it's not enforced
-                        HashMap::<Uuid, CharacteristicInfo>::new(),
-                        |mut map, characteristic| {
-                            if !map.contains_key(&characteristic.uuid) {
-                                map.insert(characteristic.uuid, characteristic);
-                            }
-                            map
-                        },
-                    )
-                    .into_iter()
-                    .map(|mapped_characteristic| async {
-                        let characteristic = mapped_characteristic.1;
-                        let descriptors = self
-                            .session
-                            .get_descriptors(&characteristic.id)
-                            .await
-                            .unwrap_or(Vec::new())
-                            .into_iter()
-                            .map(|descriptor| (descriptor.uuid, descriptor))
-                            .collect();
-                        CharacteristicInternal::new(characteristic, descriptors)
+                        uuids.insert(characteristic.uuid).then_some(async {
+                            let descriptors = self
+                                .session
+                                .get_descriptors(&characteristic.id)
+                                .await
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|descriptor| (descriptor.uuid, descriptor))
+                                .collect();
+                            (
+                                characteristic.uuid,
+                                CharacteristicInternal {
+                                    info: characteristic,
+                                    descriptors,
+                                },
+                            )
+                        })
                     }),
             )
-            .await;
+            .await
+            .into_iter()
+            .collect();
+
             services_internal.insert(
                 service.uuid,
                 ServiceInternal {
                     info: service,
-                    characteristics: characteristics
-                        .into_iter()
-                        .map(|characteristic| (characteristic.info.uuid, characteristic))
-                        .collect(),
+                    characteristics,
                 },
             );
         }
@@ -391,8 +384,8 @@ fn make_characteristic(
         uuid: info.uuid,
         properties: info.flags.into(),
         descriptors: descriptors
-            .iter()
-            .map(|(_, descriptor)| make_descriptor(descriptor, info.uuid, service_uuid))
+            .values()
+            .map(|descriptor| make_descriptor(descriptor, info.uuid, service_uuid))
             .collect(),
         service_uuid,
     }
